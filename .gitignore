@@ -1,3 +1,4 @@
 /.idea/
 /__MACOSX/
 /src/notebooks/WikiArt-Emotions/
+/src/data_collection/__pycache__/
