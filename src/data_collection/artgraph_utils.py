@@ -3,8 +3,11 @@ from neo4j import GraphDatabase
 from tqdm import tqdm
 import logging
 from utils import BASE_AUTH
+import warnings
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(message)s')
+
+warnings.filterwarnings('ignore')
 
 tqdm.pandas()
 
@@ -112,7 +115,7 @@ def update_graph(driver, db, rels):
     :param rels:
     :return:
     """
-    for rel in tqdm(rels):
+    for rel in rels:
         update_rel_to_db(rel, driver, db)
 
 

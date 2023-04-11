@@ -16,8 +16,8 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(message)s')
 def get_paintings_by_artist(artist_name):
     """
 
-    :param artist_name:
-    :return:
+    :param artist_name: the name of an artist
+    :return: a dict containing all the metadata regarding the artist
     """
     base_query = 'https://www.wikiart.org/en/App/Painting/PaintingsByArtist?artistUrl={artist}&json=2'
     return requests.get(base_query.format(artist=artist_name)).json()
@@ -46,12 +46,26 @@ def get_content_id(artist_name, artwork):
 
 
 def artist_in_artgraph(artist_name, driver, db):
+    """
+
+    :param artist_name: a generic artist name
+    :param driver: connection with db
+    :param db: name of db
+    :return: boolean value. True if artist name is present in db, otherwise false
+    """
     with driver.session(database=db) as session:
         ans = session.run(f'match (a:Artist{{name: "{artist_name}" }}) return count(distinct a) as num')
         return next(iter(ans))['num'] > 0
 
 
 def get_artist_information(artist_name):
+    """
+
+    :param artist_name: a generic artist name
+    :return: all the info retrieved for the given artist. Specifically, if the artist is present into artgraph,
+            nodes and relationships regarding it are returned, otherwise a query on the base api is made, and the result
+            is in dict format.
+    """
     # if in artgraph -> migrate, else get it from the web
     driver = GraphDatabase.driver(**BASE_AUTH)
     if artist_in_artgraph(artist_name, driver, 'neo4j'):
@@ -68,66 +82,140 @@ def get_artist_information(artist_name):
 
 
 def get_artwork_information(content_id):
+    """
+
+    :param content_id: id of specific artwork
+    :return: all the info in dict format.
+    """
     return {k: v for k, v in requests.get(f'https://www.wikiart.org/en/App/Painting/ImageJson/{content_id}').json()
             .items()if k != 'dictionaries'}
 
 
 def stringfy_prop(props):
+    """
+
+    :param props: dict of properties
+    :return: a string ready to be inserted for a query in neo4j
+    """
     return ', '.join([f'{x}: "{props[x]}"' if isinstance(props[x], str) else f"{x}: {props[x]}" for x in props.keys()
                       if props[x] is not None])
 
 
-def save_artwork(raw, driver, db):
-    metadata = get_artwork_information(raw['content_id'])
+def save_artist(raw, driver, db):
+    """
+
+    :param raw: general infotmation regarding the given artist
+    :param driver: connection to db
+    :param db: name of database
+    :return: None. It has the effect of inserting specific nodes and edges in the graph.
+    """
     artist_info, mode = get_artist_information(raw['artist_name'])
     # add artist
-    if mode == 'artwork':
+    if mode == 'artgraph':
         update_graph(driver=driver, db=db, rels=artist_info)
     else:
+        attributes = {'birth_date': artist_info['birthDayAsString'] if artist_info['birthDayAsString'] else None,
+                      'death_date': artist_info['deathDayAsString'] if artist_info['deathDayAsString'] else None,
+                      'wikipedia_url': artist_info['wikipediaUrl'] if artist_info['wikipediaUrl'] else None,
+                      'gender': artist_info['gender'] if artist_info['gender'] else None,
+                      'image_url': artist_info['image'] if artist_info['image'] else None,
+                      'name': artist_info['url'] if artist_info['url'] else None,
+                      'printed_name': artist_info['artistName'] if artist_info['artistName'] else None,
+                      'biography': artist_info['biography'] if artist_info['biography'] else None,
+                      }
+
+        query = f'''merge(:Artist{{ {", ".join([f'{k}: "{v}"' for k, v in attributes.items() if v is not None])} }})'''
         with driver.session(database=db) as session:
-            session.run(f'merge(:Artist{{ {stringfy_prop(metadata)} }})')
+            session.run(query)
+
+
+def save_artwork(raw, driver, db):
+    """
+
+    :param raw: general information about the artwork and the artist
+    :param driver: connection to database
+    :param db: database name
+    :return: None. It has the effect of saving all metadata regarding the artwork in the graph.
+    """
+    try:
+        save_artist(raw, driver, db)
+        metadata = get_artwork_information(raw['content_id'])
+    except:
+        return
     # add other info
     with driver.session(database=db) as session:
         # merge just the artwork
-        session.run(f'''merge(:Artwork{{ code: "{raw.content_id}",
-                                         title: "{metadata['title']}",
+        session.run(f'''merge(:Artwork{{ code: "{raw.ID}",
+                                         title: "{metadata['title'].replace('"', '')}",
                                          year: "{metadata['yearAsString']},
                                          dimensions: '{metadata['height']} X {metadata['width']}',
                                          image_url: '{metadata['image']}',
-                                         name: '{metadata['artist_url']}_{metadata['url']}.jpg'"}})''')
-        # merge style and genre
+                                         name: '{metadata['artistUrl']}_{metadata['url']}.jpg'"}})''')
+
+        # getting properties
+        style = [x.lower() for x in metadata['style'].split(', ')][0] if metadata['style'] else None
+        genre = [x.lower() for x in metadata['genre'].split(', ')][0] if metadata['genre'] else None
+        medias = metadata['material'].split(', ') if metadata['material'] else None
+        serie = [x.lower() for x in metadata['serie'].split(', ')][0] if metadata['serie'] else None
+        gallery = [x.lower() for x in metadata['galleryName'].split(', ')][0] if metadata['galleryName'] else None
+        period = [x.lower() for x in metadata['period'].split(', ')][0] if metadata['period'] else None
+        tags = [x.lower().replace('"', "'") for x in metadata['tags'].split(', ')] if metadata['tags'] else None
+
+
         session.run(f'''match (a:Artwork{{code: "{raw.content_id}"}})
                         match (au:Artist{{name: "{raw.artist_name}"}})
-                        merge (s:Style{{ name: "{metadata['style'].lower()}"}})
-                        merge (g:Genre{{name: "{metadata['genre'].lower()}"}})
-                        create (a)-[:createdBy]->(au)
-                        create (a)-[:hasStyle]->(s)
-                        create (a)-[:hasGenre]->(g)''')
+                        merge (a)-[:createdBy]->(au)''')
+
+        # merge style
+        if style:
+            session.run(f'''match (a:Artwork{{code: "{raw.content_id}"}})
+                            merge(s:Style{{name: "{style}"}})
+                            merge (a)-[:hasStyle]->(s)''')
+
+        # merge genre
+        if genre:
+            session.run(f'''match (a:Artwork{{code: "{raw.content_id}"}})
+                            merge(g:Genre{{name: "{genre}"}})
+                            merge (a)-[:hasGenre]->(g)''')
 
         # merge media if there are
-        medias = metadata['material']
-        if medias is not None:
+        if medias:
             query = f'''match (a:Artwork{{code: "{raw.ID}"}})'''
-            query += '\n'.join([f'merge (t{i}: Tag{{name: "{tag}"}})\n create (a)-[:about]->(t{i})'\
-                                for i, tag in enumerate(medias)])
+            query += '\n'.join([f'merge (m{i}: Media{{name: "{media}"}})\n merge (a)-[:madeOf]->(m{i})' \
+                                for i, media in enumerate(medias)])
             session.run(query)
-        if metadata['serie'] is not None:
+
+        # merge serie
+        if serie:
             session.run(f'''match (a:Artwork{{code: "{raw.content_id}"}})
                             merge (s:Serie{{ name: "{metadata['serie']}" }})
-                            create (a)-[:partOf]->(s)''')
-        if metadata['galleryName'] is not None:
+                            merge (a)-[:partOf]->(s)''')
+
+        # merge gallery
+        if gallery:
             session.run(f'''match (a:Artwork{{code: "{raw.content_id}"}})
                                         merge (g:Gallery{{ name: "{metadata['galleryName']}" }})
-                                        create (a)-[:locatedIn]->(g)''')
-        if metadata['period'] is not None:
+                                        merge (a)-[:locatedIn]->(g)''')
+
+        # merge period
+        if period:
             session.run(f'''match (a:Artwork{{code: "{raw.content_id}"}})
-                            merge (p:Period{{ name: {metadata['period']} }})
-                            create (a)-[:hasPeriod]->(p)''')
+                            merge (p:Period{{ name: "{metadata['period']}" }})
+                            merge (a)-[:hasPeriod]->(p)''')
+
+        # merge tags
+        if tags:
+            query = f'match (a:Artwork{{code: "{raw.content_id}"}})'
+            query += '\n'.join([f'merge (t{i}: Tag{{name: "{tag}"}})\n merge (a)-[:about]->(t{i})' \
+                                for i, tag in enumerate(tags)])
+            session.run(query)
 
 
 def main():
     artwork_info = pd.read_csv('../notebooks/artwork_info_sources.csv', index_col=0)
     driver = GraphDatabase.driver(**BASE_AUTH)
+
+    # delete useless entries
     artwork_info.drop(artwork_info[(artwork_info.api_v1_artist == 0) &
                                    (artwork_info.name_in_artgraph == 0) &
                                    (artwork_info.api_v1_artist_1 == 0) &
@@ -138,9 +226,9 @@ def main():
     artwork_info.drop(['Category', 'Year'], axis=1, inplace=True)
     artwork_info_artist = artwork_info[artwork_info.api_v1_artist == 1]
     artwork_info_artist.drop(['name_in_artgraph', 'api_v1_artist',
-                                'api_v1_artist_1', 'api_v1_url', 'api_v2'],
-                               axis=1,
-                               inplace=True)
+                              'api_v1_artist_1', 'api_v1_url', 'api_v2'],
+                             axis=1,
+                             inplace=True)
     artwork_info_artist['artist_name'] = artwork_info_artist['Image URL'].apply(lambda x: x.split('/')[-2])
     artwork_info_artist['artist_name_1'] = artwork_info_artist['Artist']\
         .apply(lambda x: '-'.join(x.lower().split(' ')))
@@ -149,9 +237,14 @@ def main():
     artwork_info_artist['content_id'] = artwork_info_artist.progress_apply(lambda x: get_content_id(x.artist_name, x[
         ['Title', 'name']]), axis=1)
 
+    artwork_info_artist.to_csv('artwork_info_artist.csv')
+
     logging.info("Saving new artworks and relations into db...")
     artwork_info_artist.progress_apply(lambda x: save_artwork(x, driver, 'recsys'), axis=1)
 
 
 if __name__ == '__main__':
-    main()
+    # main()
+    artwork_info_artist = pd.read_csv('artwork_info_artist.csv', index_col=0)
+    driver = GraphDatabase.driver(**BASE_AUTH)
+    artwork_info_artist.progress_apply(lambda x: save_artwork(x, driver, 'recsys'), axis=1)
