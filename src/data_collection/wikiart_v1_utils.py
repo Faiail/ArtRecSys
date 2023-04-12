@@ -211,6 +211,37 @@ def save_artwork(raw, driver, db):
             session.run(query)
 
 
+def update_graph_artist(artwork_info, driver):
+    artwork_info_artist = artwork_info[artwork_info.api_v1_artist == 1]
+    artwork_info_artist.drop(['name_in_artgraph', 'api_v1_artist',
+                              'api_v1_artist_1', 'api_v1_url', 'api_v2'],
+                             axis=1,
+                             inplace=True)
+    artwork_info_artist['artist_name'] = artwork_info_artist['Image URL'].apply(lambda x: x.split('/')[-2])
+    artwork_info_artist['artist_name_1'] = artwork_info_artist['Artist'] \
+        .apply(lambda x: '-'.join(x.lower().split(' ')))
+    # set content ids
+    logging.info('Getting proper content ids...')
+    artwork_info_artist['content_id'] = artwork_info_artist.progress_apply(lambda x: get_content_id(x.artist_name, x[
+        ['Title', 'name']]), axis=1)
+
+    logging.info("Saving new artworks and relations into db...")
+    artwork_info_artist.progress_apply(lambda x: save_artwork(x, driver, 'recsys'), axis=1)
+
+
+def update_graph_artist_1(artwork_info, driver):
+    artwork_info_artist_1 = artwork_info[artwork_info.api_v1_artist_1 == 1]
+    artwork_info_artist_1['artist_name'] = artwork_info_artist_1['artist_1']
+    artwork_info_artist_1.drop(['name_in_artgraph', 'api_v1_artist',
+                                'api_v1_artist_1', 'api_v1_url', 'api_v2'],
+                               axis=1,
+                               inplace=True)
+    artwork_info_artist_1['content_id'] = artwork_info_artist_1.progress_apply(lambda x: get_content_id(x.artist_name, x[
+        ['Title', 'name']]), axis=1)
+    logging.info("Saving new artworks and relations (1) into db...")
+    artwork_info_artist_1.progress_apply(lambda x: save_artwork(x, driver, 'recsys'), axis=1)
+
+
 def main():
     artwork_info = pd.read_csv('../notebooks/artwork_info_sources.csv', index_col=0)
     driver = GraphDatabase.driver(**BASE_AUTH)
@@ -224,27 +255,13 @@ def main():
 
     # delete useless columns
     artwork_info.drop(['Category', 'Year'], axis=1, inplace=True)
-    artwork_info_artist = artwork_info[artwork_info.api_v1_artist == 1]
-    artwork_info_artist.drop(['name_in_artgraph', 'api_v1_artist',
-                              'api_v1_artist_1', 'api_v1_url', 'api_v2'],
-                             axis=1,
-                             inplace=True)
-    artwork_info_artist['artist_name'] = artwork_info_artist['Image URL'].apply(lambda x: x.split('/')[-2])
-    artwork_info_artist['artist_name_1'] = artwork_info_artist['Artist']\
-        .apply(lambda x: '-'.join(x.lower().split(' ')))
-    # set content ids
-    logging.info('Getting proper content ids...')
-    artwork_info_artist['content_id'] = artwork_info_artist.progress_apply(lambda x: get_content_id(x.artist_name, x[
-        ['Title', 'name']]), axis=1)
 
-    artwork_info_artist.to_csv('artwork_info_artist.csv')
-
-    logging.info("Saving new artworks and relations into db...")
-    artwork_info_artist.progress_apply(lambda x: save_artwork(x, driver, 'recsys'), axis=1)
+    update_graph_artist(artwork_info, driver)
+    update_graph_artist_1(artwork_info, driver)
 
 
 if __name__ == '__main__':
     # main()
-    artwork_info_artist = pd.read_csv('artwork_info_artist.csv', index_col=0)
+    artwork_info = pd.read_csv('../notebooks/artwork_info_sources.csv', index_col=0)
     driver = GraphDatabase.driver(**BASE_AUTH)
-    artwork_info_artist.progress_apply(lambda x: save_artwork(x, driver, 'recsys'), axis=1)
+    update_graph_artist_1(artwork_info, driver)
