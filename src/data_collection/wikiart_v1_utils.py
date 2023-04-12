@@ -147,7 +147,7 @@ def save_artwork(raw, driver, db):
         # merge just the artwork
         session.run(f'''merge(:Artwork{{ code: "{raw.ID}",
                                          title: "{metadata['title'].replace('"', '')}",
-                                         year: "{metadata['yearAsString']},
+                                         year: "{metadata['yearAsString']}",
                                          dimensions: '{metadata['height']} X {metadata['width']}',
                                          image_url: '{metadata['image']}',
                                          name: '{metadata['artistUrl']}_{metadata['url']}.jpg'"}})''')
@@ -163,7 +163,7 @@ def save_artwork(raw, driver, db):
 
 
         session.run(f'''match (a:Artwork{{code: "{raw.ID}"}})
-                        match (au:Artist{{name: "{raw.ID}"}})
+                        match (au:Artist{{name: "{raw.artist_name}"}})
                         merge (a)-[:createdBy]->(au)''')
 
         # merge style
@@ -242,6 +242,27 @@ def update_graph_artist_1(artwork_info, driver):
     artwork_info_artist_1.progress_apply(lambda x: save_artwork(x, driver, 'recsys'), axis=1)
 
 
+def get_url_content_id(artist_name, artwork):
+    paintings = get_paintings_by_artist(artist_name)
+    paintings = map(lambda x: x['contentId'], paintings)
+    paintings = map(lambda x: (x, f'{get_artwork_information(x)["url"]}.jpg'), paintings)
+    return list(filter(lambda x: x[1] == artwork, paintings))[0][0]
+
+
+def update_graph_url(artwork_info, driver):
+    artwork_info_url = artwork_info[artwork_info.api_v1_url == 1]
+    artwork_info_url['artist_name'] = artwork_info_url['artist']
+    artwork_info_url.drop(['name_in_artgraph', 'api_v1_artist',
+                                'api_v1_artist_1', 'api_v1_url', 'api_v2'],
+                               axis=1,
+                               inplace=True)
+    logging.info('getting content ids')
+    artwork_info_url['content_id'] = artwork_info_url.progress_apply(lambda x: get_url_content_id(x.artist_name, x['name']),
+                                                                     axis=1)
+    logging.info('Saving new artworks and relations (url) into db...')
+    artwork_info_url.progress_apply(lambda x: save_artwork(x, driver, 'recsys'), axis=1)
+
+
 def main():
     artwork_info = pd.read_csv('../notebooks/artwork_info_sources.csv', index_col=0)
     driver = GraphDatabase.driver(**BASE_AUTH)
@@ -264,4 +285,4 @@ if __name__ == '__main__':
     # main()
     artwork_info = pd.read_csv('../notebooks/artwork_info_sources.csv', index_col=0)
     driver = GraphDatabase.driver(**BASE_AUTH)
-    update_graph_artist_1(artwork_info, driver)
+    update_graph_url(artwork_info, driver)
