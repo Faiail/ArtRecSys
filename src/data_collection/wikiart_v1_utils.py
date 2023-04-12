@@ -138,8 +138,8 @@ def save_artwork(raw, driver, db):
     :return: None. It has the effect of saving all metadata regarding the artwork in the graph.
     """
     try:
-        save_artist(raw, driver, db)
         metadata = get_artwork_information(raw['content_id'])
+        save_artist(raw, driver, db)
     except:
         return
     # add other info
@@ -162,19 +162,19 @@ def save_artwork(raw, driver, db):
         tags = [x.lower().replace('"', "'") for x in metadata['tags'].split(', ')] if metadata['tags'] else None
 
 
-        session.run(f'''match (a:Artwork{{code: "{raw.content_id}"}})
-                        match (au:Artist{{name: "{raw.artist_name}"}})
+        session.run(f'''match (a:Artwork{{code: "{raw.ID}"}})
+                        match (au:Artist{{name: "{raw.ID}"}})
                         merge (a)-[:createdBy]->(au)''')
 
         # merge style
         if style:
-            session.run(f'''match (a:Artwork{{code: "{raw.content_id}"}})
+            session.run(f'''match (a:Artwork{{code: "{raw.ID}"}})
                             merge(s:Style{{name: "{style}"}})
                             merge (a)-[:hasStyle]->(s)''')
 
         # merge genre
         if genre:
-            session.run(f'''match (a:Artwork{{code: "{raw.content_id}"}})
+            session.run(f'''match (a:Artwork{{code: "{raw.ID}"}})
                             merge(g:Genre{{name: "{genre}"}})
                             merge (a)-[:hasGenre]->(g)''')
 
@@ -187,25 +187,25 @@ def save_artwork(raw, driver, db):
 
         # merge serie
         if serie:
-            session.run(f'''match (a:Artwork{{code: "{raw.content_id}"}})
+            session.run(f'''match (a:Artwork{{code: "{raw.ID}"}})
                             merge (s:Serie{{ name: "{metadata['serie']}" }})
                             merge (a)-[:partOf]->(s)''')
 
         # merge gallery
         if gallery:
-            session.run(f'''match (a:Artwork{{code: "{raw.content_id}"}})
+            session.run(f'''match (a:Artwork{{code: "{raw.ID}"}})
                                         merge (g:Gallery{{ name: "{metadata['galleryName']}" }})
                                         merge (a)-[:locatedIn]->(g)''')
 
         # merge period
         if period:
-            session.run(f'''match (a:Artwork{{code: "{raw.content_id}"}})
+            session.run(f'''match (a:Artwork{{code: "{raw.ID}"}})
                             merge (p:Period{{ name: "{metadata['period']}" }})
                             merge (a)-[:hasPeriod]->(p)''')
 
         # merge tags
         if tags:
-            query = f'match (a:Artwork{{code: "{raw.content_id}"}})'
+            query = f'match (a:Artwork{{code: "{raw.ID}"}})'
             query += '\n'.join([f'merge (t{i}: Tag{{name: "{tag}"}})\n merge (a)-[:about]->(t{i})' \
                                 for i, tag in enumerate(tags)])
             session.run(query)
