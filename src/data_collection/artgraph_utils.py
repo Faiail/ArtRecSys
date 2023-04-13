@@ -11,7 +11,6 @@ warnings.filterwarnings('ignore')
 
 tqdm.pandas()
 
-
 def get_artworks(driver, db, data):
     """
 
@@ -42,7 +41,6 @@ def get_artists(driver, db, data):
         """)))
         artists_links = list(map(lambda x: x['rels'][0], artists_links))
     return artists_links
-
 
 
 def get_galeries(driver, db, data):
@@ -107,7 +105,7 @@ def update_rel_to_db(rel, driver, db):
     return query
 
 
-def update_graph(driver, db, rels):
+def update_graph(driver, db, rels, bar=True):
     """
 
     :param driver:
@@ -115,8 +113,12 @@ def update_graph(driver, db, rels):
     :param rels:
     :return:
     """
-    for rel in rels:
-        update_rel_to_db(rel, driver, db)
+    if bar:
+        for rel in tqdm(rels):
+            update_rel_to_db(rel, driver, db)
+    else:
+        for rel in rels:
+            update_rel_to_db(rel, driver, db)
 
 
 def add_code(artwork, code, session):
@@ -132,7 +134,7 @@ def add_code(artwork, code, session):
 
 
 def main():
-    artwork_info = pd.read_csv('../notebooks/artwork_info_sources.csv', index_col=0)
+    artwork_info = pd.read_csv('artwork_info_sources.csv', index_col=0)
     driver = GraphDatabase.driver(**BASE_AUTH)
     # delete useless entries, that cannot be found in any way
     artwork_info.drop(artwork_info[(artwork_info.api_v1_artist == 0) &

@@ -1,5 +1,6 @@
 import pandas as pd
 from neo4j import GraphDatabase
+from pandas import read_sql_query
 from tqdm import tqdm
 import requests
 from utils import BASE_AUTH
@@ -112,7 +113,7 @@ def save_artist(raw, driver, db):
     artist_info, mode = get_artist_information(raw['artist_name'])
     # add artist
     if mode == 'artgraph':
-        update_graph(driver=driver, db=db, rels=artist_info)
+        update_graph(driver=driver, db=db, rels=artist_info, bar=False)
     else:
         attributes = {'birth_date': artist_info['birthDayAsString'] if artist_info['birthDayAsString'] else None,
                       'death_date': artist_info['deathDayAsString'] if artist_info['deathDayAsString'] else None,
@@ -140,7 +141,7 @@ def save_artwork(raw, driver, db):
     try:
         metadata = get_artwork_information(raw['content_id'])
         save_artist(raw, driver, db)
-    except:
+    except requests.JSONDecodeError:
         return
     # add other info
     with driver.session(database=db) as session:
@@ -148,9 +149,9 @@ def save_artwork(raw, driver, db):
         session.run(f'''merge(:Artwork{{ code: "{raw.ID}",
                                          title: "{metadata['title'].replace('"', '')}",
                                          year: "{metadata['yearAsString']}",
-                                         dimensions: '{metadata['height']} X {metadata['width']}',
-                                         image_url: '{metadata['image']}',
-                                         name: '{metadata['artistUrl']}_{metadata['url']}.jpg'"}})''')
+                                         dimensions: "{metadata['height']} X {metadata['width']}",
+                                         image_url: "{metadata['image']}",
+                                         name: "{metadata['artistUrl']}_{metadata['url']}.jpg"}})''')
 
         # getting properties
         style = [x.lower() for x in metadata['style'].split(', ')][0] if metadata['style'] else None
@@ -161,9 +162,8 @@ def save_artwork(raw, driver, db):
         period = [x.lower() for x in metadata['period'].split(', ')][0] if metadata['period'] else None
         tags = [x.lower().replace('"', "'") for x in metadata['tags'].split(', ')] if metadata['tags'] else None
 
-
         session.run(f'''match (a:Artwork{{code: "{raw.ID}"}})
-                        match (au:Artist{{name: "{raw.artist_name}"}})
+                        match (au:Artist{{name: "{metadata['artistUrl']}"}})
                         merge (a)-[:createdBy]->(au)''')
 
         # merge style
@@ -236,6 +236,7 @@ def update_graph_artist_1(artwork_info, driver):
                                 'api_v1_artist_1', 'api_v1_url', 'api_v2'],
                                axis=1,
                                inplace=True)
+    logging.info("Getting proper content ids (1) ...")
     artwork_info_artist_1['content_id'] = artwork_info_artist_1.progress_apply(lambda x: get_content_id(x.artist_name, x[
         ['Title', 'name']]), axis=1)
     logging.info("Saving new artworks and relations (1) into db...")
@@ -253,10 +254,10 @@ def update_graph_url(artwork_info, driver):
     artwork_info_url = artwork_info[artwork_info.api_v1_url == 1]
     artwork_info_url['artist_name'] = artwork_info_url['artist']
     artwork_info_url.drop(['name_in_artgraph', 'api_v1_artist',
-                                'api_v1_artist_1', 'api_v1_url', 'api_v2'],
-                               axis=1,
-                               inplace=True)
-    logging.info('getting content ids')
+                           'api_v1_artist_1', 'api_v1_url', 'api_v2'],
+                          axis=1,
+                          inplace=True)
+    logging.info('getting content ids (url) ...')
     artwork_info_url['content_id'] = artwork_info_url.progress_apply(lambda x: get_url_content_id(x.artist_name, x['name']),
                                                                      axis=1)
     logging.info('Saving new artworks and relations (url) into db...')
@@ -264,7 +265,7 @@ def update_graph_url(artwork_info, driver):
 
 
 def main():
-    artwork_info = pd.read_csv('../notebooks/artwork_info_sources.csv', index_col=0)
+    artwork_info = pd.read_csv('artwork_info_sources.csv', index_col=0)
     driver = GraphDatabase.driver(**BASE_AUTH)
 
     # delete useless entries
@@ -277,12 +278,10 @@ def main():
     # delete useless columns
     artwork_info.drop(['Category', 'Year'], axis=1, inplace=True)
 
-    update_graph_artist(artwork_info, driver)
+    # update_graph_artist(artwork_info, driver)
     update_graph_artist_1(artwork_info, driver)
+    update_graph_url(artwork_info, driver)
 
 
 if __name__ == '__main__':
-    # main()
-    artwork_info = pd.read_csv('../notebooks/artwork_info_sources.csv', index_col=0)
-    driver = GraphDatabase.driver(**BASE_AUTH)
-    update_graph_url(artwork_info, driver)
+    main()

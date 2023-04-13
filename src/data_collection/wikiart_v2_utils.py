@@ -91,7 +91,7 @@ def save_artwork(raw, driver, db):
 
 
 def main():
-    artwork_info = pd.read_csv('./../notebooks/artwork_info_sources.csv', index_col=0)
+    artwork_info = pd.read_csv('artwork_info_sources.csv', index_col=0)
     driver = GraphDatabase.driver(**BASE_AUTH)
     artwork_info_v2 = artwork_info[artwork_info.api_v2 == 1]
 
@@ -99,9 +99,9 @@ def main():
     artwork_info_v2['artist_name'] = artwork_info_v2['artist']
 
     artwork_info_v2.drop(['name_in_artgraph', 'api_v1_artist',
-                           'api_v1_artist_1', 'api_v1_url', 'api_v2'],
-                          axis=1,
-                          inplace=True)
+                          'api_v1_artist_1', 'api_v1_url', 'api_v2'],
+                         axis=1,
+                         inplace=True)
 
     artwork_info_v2.progress_apply(lambda x: save_artwork(x, driver, 'recsys'), axis=1)
 
