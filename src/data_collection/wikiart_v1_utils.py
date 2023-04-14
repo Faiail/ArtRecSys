@@ -278,7 +278,7 @@ def main():
     # delete useless columns
     artwork_info.drop(['Category', 'Year'], axis=1, inplace=True)
 
-    # update_graph_artist(artwork_info, driver)
+    update_graph_artist(artwork_info, driver)
     update_graph_artist_1(artwork_info, driver)
     update_graph_url(artwork_info, driver)
 
