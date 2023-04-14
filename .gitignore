@@ -2,3 +2,5 @@
 /__MACOSX/
 /src/notebooks/WikiArt-Emotions/
 /src/data_collection/__pycache__/
+/src/neo4j2raw/artgraph2recsys/
+/src/neo4j2raw/__pycache__/
