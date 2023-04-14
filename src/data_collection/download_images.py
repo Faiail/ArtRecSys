@@ -1,13 +1,14 @@
 from neo4j import GraphDatabase
-import requests
-from PIL import Image
-import pandas as pd
 from io import BytesIO
+from PIL import Image
 from tqdm import tqdm
-import logging
+import pandas as pd
+import requests
 import warnings
 import argparse
+import logging
 import os
+import re
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(message)s')
 warnings.filterwarnings('ignore')
@@ -27,8 +28,9 @@ def parse_args():
 
 def download_image(root, name, url):
     response = requests.get(url)
-    img = Image.open(BytesIO(response.content))
-    img.save(f'{root}/{name}')
+    if response.status_code != 200:
+        response = requests.get(re.split('!', url)[0])
+    Image.open(BytesIO(response.content)).convert('RGB').save(f'{root}/{name}')
 
 
 def main():
@@ -36,7 +38,6 @@ def main():
     driver = GraphDatabase.driver(uri=args.uri, auth=(args.user, args.pwd))
     with driver.session(database=args.db) as session:
         data = pd.DataFrame(session.run('match (a:Artwork) return a.name as name, a.image_url as url').data())
-
 
     if not os.path.exists(args.root):
         os.mkdir(os.path.abspath(args.root))
