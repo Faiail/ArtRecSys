@@ -19,5 +19,5 @@ if __name__ == '__main__':
     logging.info('loading into Artgraph from WikiArt v2 API...')
     wikiart_v2()
 
-    logging.ingo('loading ratings...')
+    logging.info('loading ratings...')
     ratings()
