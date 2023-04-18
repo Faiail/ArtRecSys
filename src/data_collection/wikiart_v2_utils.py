@@ -18,9 +18,11 @@ def get_painting(id: str):
     return requests.get(base.format(id=id)).json()
 
 
-def save_artwork(raw, driver, db):
+def save_artwork(raw, driver, db, v2=False):
     metadata = get_painting(raw.ID)
-    save_artist(raw, driver, db)
+    if v2:
+        raw['artist_name'] = metadata['artistUrl']
+    artist=save_artist(raw, driver, db)
 
     with driver.session(database=db) as session:
         # merge just the artwork
@@ -42,7 +44,7 @@ def save_artwork(raw, driver, db):
 
 
         session.run(f'''match (a:Artwork{{code: "{raw.ID}"}})
-                        match (au:Artist{{name: "{raw.artist_name}" }})
+                        match (au:Artist{{name: "{artist}" }})
                         merge (a)-[:createdBy]->(au)''')
 
         # merge style
@@ -103,7 +105,7 @@ def main():
                          axis=1,
                          inplace=True)
 
-    artwork_info_v2.progress_apply(lambda x: save_artwork(x, driver, 'recsys'), axis=1)
+    artwork_info_v2.progress_apply(lambda x: save_artwork(x, driver, 'recsys', v2=True), axis=1)
 
 
 if __name__ == '__main__':

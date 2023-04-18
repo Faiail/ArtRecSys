@@ -76,6 +76,9 @@ def get_artist_information(artist_name):
             return relationships(p) as rels, nodes(p) as nodes
             """)))
             artists_links = list(map(lambda x: x['rels'][0], artists_links))
+        if not artists_links:
+            base_query = 'https://www.wikiart.org/en/{artist_name}?json=2'
+            return requests.get(base_query.format(artist_name=artist_name)).json(), 'web'
         return artists_links, 'artgraph'
     else:
         base_query = 'https://www.wikiart.org/en/{artist_name}?json=2'
@@ -114,6 +117,7 @@ def save_artist(raw, driver, db):
     # add artist
     if mode == 'artgraph':
         update_graph(driver=driver, db=db, rels=artist_info, bar=False)
+        return raw['artist_name']
     else:
         attributes = {'birth_date': artist_info['birthDayAsString'] if artist_info['birthDayAsString'] else None,
                       'death_date': artist_info['deathDayAsString'] if artist_info['deathDayAsString'] else None,
@@ -122,12 +126,12 @@ def save_artist(raw, driver, db):
                       'image_url': artist_info['image'] if artist_info['image'] else None,
                       'name': artist_info['url'] if artist_info['url'] else None,
                       'printed_name': artist_info['artistName'] if artist_info['artistName'] else None,
-                      'biography': artist_info['biography'] if artist_info['biography'] else None,
                       }
 
         query = f'''merge(:Artist{{ {", ".join([f'{k}: "{v}"' for k, v in attributes.items() if v is not None])} }})'''
         with driver.session(database=db) as session:
             session.run(query)
+        return artist_info['url']
 
 
 def save_artwork(raw, driver, db):
@@ -140,7 +144,7 @@ def save_artwork(raw, driver, db):
     """
     try:
         metadata = get_artwork_information(raw['content_id'])
-        save_artist(raw, driver, db)
+        artist = save_artist(raw, driver, db)
     except requests.JSONDecodeError:
         return
     # add other info
@@ -163,7 +167,7 @@ def save_artwork(raw, driver, db):
         tags = [x.lower().replace('"', "'") for x in metadata['tags'].split(', ')] if metadata['tags'] else None
 
         session.run(f'''match (a:Artwork{{code: "{raw.ID}"}})
-                        match (au:Artist{{name: "{metadata['artistUrl']}"}})
+                        match (au:Artist{{name: "{artist}"}})
                         merge (a)-[:createdBy]->(au)''')
 
         # merge style

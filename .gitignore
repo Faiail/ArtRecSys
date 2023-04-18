@@ -9,3 +9,4 @@
 src/feature_extraction/__pycache__/
 src/feature_extraction/vit_fine_tune_style.pt
 /WikiArt-Emotions/
+/src/notebooks/.ipynb_checkpoints/

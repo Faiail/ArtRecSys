@@ -100,7 +100,7 @@ def update_rel_to_db(rel, driver, db):
     merge (b: {list(b.labels)[0]} {{ {get_properties(b._properties)} }})
     merge (a)-[:{rel.type} {{ {get_properties(rel._properties)} }}]->(b)
     """
-    with driver.session(database = db) as session:
+    with driver.session(database=db) as session:
         session.run(query)
     return query
 
@@ -152,7 +152,7 @@ def main():
                                inplace=True)
 
     # get all the artworks
-    artworks = artwork_info_artgraph['Image URL'].progress_apply(lambda x: '_'.join(x.split('/')[-2:])).tolist()
+    artworks = artwork_info_artgraph['Image URL'].apply(lambda x: '_'.join(x.split('/')[-2:])).tolist()
 
     # add artworks to new db
     logging.info('adding artworks...')
