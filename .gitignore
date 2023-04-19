@@ -4,9 +4,11 @@
 /src/data_collection/__pycache__/
 /src/neo4j2raw/artgraph2recsys/
 /src/neo4j2raw/__pycache__/
-/src/data_collection/artgraph2recsys-images/
 /src/data_collection/images/
 src/feature_extraction/__pycache__/
 src/feature_extraction/vit_fine_tune_style.pt
 /WikiArt-Emotions/
 /src/notebooks/.ipynb_checkpoints/
+/src/models/graph/__pycache__/
+src/neo4j2raw/load_dataset/__pycache__/
+src/utils/__pycache__/
