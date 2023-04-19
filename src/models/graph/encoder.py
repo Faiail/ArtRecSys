@@ -18,10 +18,9 @@ class GNNEncoder(torch.nn.Module):
             conv = GATConv((-1, -1), hidden_channels, dropout=drop_rate, add_self_loops=False)
             self.convs.append(conv)
 
-    def forward(self, x, edge_index):
+    def forward(self, x, edge_index, edge_attr):
         for conv in self.convs:
-            x = conv(x, edge_index)
-        print(x)
+            x = conv(x, edge_index, edge_attr)
         return x
 
 
