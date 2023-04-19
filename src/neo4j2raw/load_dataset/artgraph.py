@@ -60,7 +60,7 @@ class ArtGraph(InMemoryDataset):
         num_nodes_df = pd.read_csv(path)
         num_nodes_df.rename(columns={"training": "training_node"}, inplace=True)
         nodes_type = ['artist', 'gallery', 'city', 'country', 'style', 'period', 'genre', 'serie', 'tag',
-                        'media', 'subject', 'training_node', 'field', 'movement', 'people', 'emotion']
+                        'media', 'subject', 'training_node', 'field', 'movement', 'people', 'emotion', 'user']
         if self.preprocess is None:
             for node_type in nodes_type:
                 data[node_type].num_nodes = num_nodes_df[node_type].tolist()[0]
