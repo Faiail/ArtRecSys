@@ -17,7 +17,7 @@ tqdm.pandas()
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--root', required=False, default='artgraph2recsys-images', help='root folder to store the images', type=str)
+    parser.add_argument('--root', required=False, default='images', help='root folder to store the images', type=str)
     parser.add_argument('--uri', required=False, default="bolt://localhost:7687", help='uri of the neo4j dbms', type=str)
     parser.add_argument('--user', required=False, default='neo4j', help='username of the target db', type=str)
     parser.add_argument('--pwd', required=False, default='neo4j', help='password of the target db', type=str)
