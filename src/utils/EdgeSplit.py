@@ -73,4 +73,3 @@ class LinkSplit:
         test[self.edge_type]['edge_weight'] = train[self.edge_type]['edge_weight']
 
         return train, val, test
-    
