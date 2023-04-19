@@ -116,7 +116,8 @@ def save_artist(raw, driver, db):
     artist_info, mode = get_artist_information(raw['artist_name'])
     # add artist
     if mode == 'artgraph':
-        update_graph(driver=driver, db=db, rels=artist_info, bar=False)
+        if not artist_in_artgraph(raw['artist_name'], driver, db):
+            update_graph(driver=driver, db=db, rels=artist_info, bar=False)
         return raw['artist_name']
     else:
         attributes = {'birth_date': artist_info['birthDayAsString'] if artist_info['birthDayAsString'] else None,
@@ -128,9 +129,10 @@ def save_artist(raw, driver, db):
                       'printed_name': artist_info['artistName'] if artist_info['artistName'] else None,
                       }
 
-        query = f'''merge(:Artist{{ {", ".join([f'{k}: "{v}"' for k, v in attributes.items() if v is not None])} }})'''
-        with driver.session(database=db) as session:
-            session.run(query)
+        if not artist_in_artgraph(artist_info['url'], driver, db):
+            query = f'''merge(:Artist{{ {", ".join([f'{k}: "{v}"' for k, v in attributes.items() if v is not None])} }})'''
+            with driver.session(database=db) as session:
+                session.run(query)
         return artist_info['url']
 
 
