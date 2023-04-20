@@ -13,11 +13,10 @@ class ContextAwareArtRecSys(torch.nn.Module):
         self.out_lin = torch.nn.Linear(in_features=self.lin_user.out_features*2, out_features=1)
         self.activation = activation
 
-    def forward(self, x_dict, edge_index_dict, edge_weight_dict):
-        target_edge_index = edge_index_dict[('user', 'rates', 'artwork')]
-        z_dict = self.encoder(x_dict, edge_index_dict, edge_weight_dict)
-        users = z_dict['user'][target_edge_index[0]]
-        items = z_dict['artwork'][target_edge_index[1]]
+    def forward(self, graph, entries):
+        z_dict = self.encoder(graph.x_dict, graph.edge_index_dict, graph.edge_weight_dict)
+        users = z_dict['user'][entries[0]]
+        items = z_dict['artwork'][entries[1]]
         user_feats = self.lin_user(users)
         item_feats = self.lin_item(items)
         return self.out_lin(torch.cat([user_feats, item_feats], axis=1))
